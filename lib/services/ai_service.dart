@@ -7,6 +7,8 @@ import 'package:uuid/uuid.dart';
 import '../api_key.dart';
 import 'safety_service.dart';
 import '../models/chat_session.dart';
+import 'offline_chat_service.dart';
+import 'burnout_prediction_service.dart';
 
 class AIService extends ChangeNotifier {
   late final GenerativeModel _model;
@@ -21,6 +23,16 @@ class AIService extends ChangeNotifier {
   // Getter for current messages to display in UI
   List<Map<dynamic, dynamic>> get currentMessages => _currentMessages;
   List<Map<dynamic, dynamic>> _currentMessages = [];
+
+  String? _lastIntent;
+  String? get lastIntent => _lastIntent;
+
+  // Dependency Injection
+  BurnoutPredictionService? _burnoutService;
+
+  void updateBurnoutService(BurnoutPredictionService service) {
+    _burnoutService = service;
+  }
 
   AIService() {
     _model = GenerativeModel(
@@ -41,6 +53,8 @@ class AIService extends ChangeNotifier {
     );
     _initService();
   }
+
+  // ... (initService, getAllSessions, startNewSession, loadSession, initGeminiChat, gatherContext methods remain unchanged)
 
   Future<void> _initService() async {
     _sessionsBox = Hive.box('sessions');
@@ -231,6 +245,8 @@ class AIService extends ChangeNotifier {
     }
 
     _isLoading = true;
+    // Reset intent on new message until processed
+    _lastIntent = null;
     _currentMessages.add({'role': 'user', 'text': text}); // Optimistic update
     notifyListeners();
 
@@ -247,9 +263,25 @@ class AIService extends ChangeNotifier {
       return replyText;
     } catch (e) {
       _isLoading = false;
-      notifyListeners();
       if (kDebugMode) print('AI Error: $e');
-      return 'Sori bro, sistem gw lagi down dikit. (API Error)';
+
+      // Fallback to Offline Mode
+      final result = OfflineChatService.generateResponseWithIntent(text);
+      final offlineReply = result['text'];
+      _lastIntent = result['intent'];
+
+      // Log to Burnout Service
+      if (_lastIntent != null) {
+        _burnoutService?.logChatSentiment(_lastIntent!);
+      }
+
+      final replyText = "$offlineReply (Offline Mode 📡)";
+
+      _currentMessages.add({'role': 'bot', 'text': replyText});
+      await _saveCurrentSession();
+      notifyListeners();
+
+      return replyText;
     }
   }
 

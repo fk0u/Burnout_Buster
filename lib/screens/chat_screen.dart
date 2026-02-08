@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For Haptics
 import 'package:provider/provider.dart';
-// import 'package:hive_flutter/hive_flutter.dart'; // Unused
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../services/ai_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -15,17 +15,14 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  // Removed: late Box _chatBox;
-  // Removed: List<Map<dynamic, dynamic>> _messages = [];
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
 
   @override
   void initState() {
     super.initState();
-    // Messages loaded by AIService
-    // _scrollToBottom() called after build
+    _speech = stt.SpeechToText();
   }
-
-  // Removed: _loadMessages()
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -52,6 +49,40 @@ class _ChatScreenState extends State<ChatScreen> {
     await aiService.sendMessage(text);
 
     _scrollToBottom();
+  }
+
+  void _listen() async {
+    if (!_isListening) {
+      bool available = await _speech.initialize(
+        onStatus: (val) {
+          if (val == 'done' || val == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (val) => setState(() => _isListening = false),
+      );
+
+      if (available) {
+        setState(() => _isListening = true);
+        HapticFeedback.selectionClick();
+        _speech.listen(
+          onResult: (val) {
+            setState(() {
+              _textController.text = val.recognizedWords;
+            });
+          },
+        );
+      } else {
+        // Handle permission or availability error
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Mic not available or permission denied.')));
+        }
+      }
+    } else {
+      setState(() => _isListening = false);
+      _speech.stop();
+    }
   }
 
   @override
@@ -152,6 +183,28 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: const TypingIndicator(),
               ),
             ),
+          // SMART ACTION CHIP
+          if (aiService.lastIntent == 'stress' || aiService.lastIntent == 'sad')
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              width: double.infinity,
+              color: Colors.black12,
+              child: Row(
+                children: [
+                  const Text("💡 Saran: ",
+                      style: TextStyle(color: Colors.white70)),
+                  ActionChip(
+                    label: const Text("Masuk Zen Mode 🧘‍♂️"),
+                    backgroundColor: Colors.purpleAccent.withOpacity(0.2),
+                    labelStyle: const TextStyle(color: Colors.purpleAccent),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/zen_mode');
+                    },
+                  ),
+                ],
+              ),
+            ).animate().fade().slideY(begin: 1, end: 0),
+
           Container(
             padding: const EdgeInsets.all(16).copyWith(bottom: 24),
             decoration: BoxDecoration(
@@ -163,13 +216,27 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             child: Row(
               children: [
+                // Mic Button
+                CircleAvatar(
+                  backgroundColor:
+                      _isListening ? Colors.redAccent : Colors.grey[800],
+                  radius: 24,
+                  child: IconButton(
+                    icon: Icon(_isListening ? Icons.mic : Icons.mic_none,
+                        color: Colors.white, size: 20),
+                    onPressed: _listen,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     controller: _textController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Curhat sini...',
-                      hintStyle: const TextStyle(color: Colors.grey),
+                      hintText:
+                          _isListening ? 'Mendengarkan...' : 'Curhat sini...',
+                      hintStyle: TextStyle(
+                          color: _isListening ? Colors.redAccent : Colors.grey),
                       filled: true,
                       fillColor: Theme.of(context).scaffoldBackgroundColor,
                       border: OutlineInputBorder(
@@ -184,7 +251,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 CircleAvatar(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   radius: 24,

@@ -7,6 +7,7 @@ import 'services/theme_provider.dart';
 import 'services/auth_service.dart';
 import 'services/encryption_service.dart';
 import 'services/energy_service.dart'; // New Service
+import 'services/burnout_prediction_service.dart'; // New Service
 import 'screens/onboarding_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/mood_tracker_screen.dart';
@@ -36,10 +37,15 @@ class BurnoutBusterApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AIService()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(
-            create: (_) => EnergyService()), // Register EnergyService
+        ChangeNotifierProvider(create: (_) => EnergyService()),
+        ChangeNotifierProvider(create: (_) => BurnoutPredictionService()),
+
+        // Use ProxyProvider to inject BurnoutPredictionService into AIService
+        ChangeNotifierProxyProvider<BurnoutPredictionService, AIService>(
+          create: (_) => AIService(),
+          update: (_, burnout, ai) => ai!..updateBurnoutService(burnout),
+        ),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {

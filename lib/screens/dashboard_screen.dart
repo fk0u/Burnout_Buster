@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/energy_battery_widget.dart';
+import '../widgets/burnout_radar_widget.dart';
+import 'zen_mode_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   final Function(int) onNavigate; // To switch tabs from dashboard
@@ -32,9 +34,15 @@ class DashboardScreen extends StatelessWidget {
             const EnergyBatteryWidget()
                 .animate()
                 .slideY(begin: -0.2, end: 0, duration: 500.ms),
+            const SizedBox(height: 16),
+
+            // 2. Burnout Radar
+            const BurnoutRadarWidget()
+                .animate()
+                .slideY(begin: -0.2, end: 0, duration: 600.ms),
             const SizedBox(height: 24),
 
-            // 2. Greeting / Status
+            // 3. Greeting / Status
             const Text(
               'Apa kabar mental lo hari ini?',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -77,9 +85,11 @@ class DashboardScreen extends StatelessWidget {
                   icon: Icons.self_improvement,
                   color: Colors.purpleAccent,
                   onTap: () {
-                    // TODO: Navigate to Zen Mode Screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Working on it! 🚧')));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const ZenModeScreen()),
+                    );
                   },
                 ),
               ],
